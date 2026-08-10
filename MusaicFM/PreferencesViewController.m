@@ -185,7 +185,15 @@
 - (IBAction)dismissViewController:(NSButton*)doneButton
 {
     [self.preferences synchronize];
-    [self.window.sheetParent endSheet:self.window returnCode:NSModalResponseOK];
+
+    NSWindow* sheet = self.window;
+    NSWindow* parent = sheet.sheetParent;
+    if (parent) {
+        [parent endSheet:sheet returnCode:NSModalResponseOK];
+    } else if ([NSApp respondsToSelector:@selector(endSheet:returnCode:)]) {
+        [NSApp endSheet:sheet returnCode:NSModalResponseOK];
+    }
+    [sheet orderOut:nil];
 }
 
 - (void)controlTextDidChange:(NSNotification*)obj

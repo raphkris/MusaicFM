@@ -64,12 +64,46 @@
     self.spotifyCode = nil;
 }
 
+- (void)mirrorPreferencesIntoLegacyScreenSaverContainer
+{
+    // MusaicFMPreferences.app writes ScreenSaverDefaults to the user ByHost
+    // domain, while legacyScreenSaver reads the sandboxed copy. Mirror after
+    // companion-app saves so settings apply without a manual plist copy.
+    NSString* home = NSHomeDirectory();
+    if ([home containsString:@"/Containers/com.apple.ScreenSaver"]) {
+        return;
+    }
+
+    NSString* module = @"com.obrhoff.musaicfm.preferences";
+    NSString* byHost = [home stringByAppendingPathComponent:@"Library/Preferences/ByHost"];
+    NSString* containerByHost = [home stringByAppendingPathComponent:
+                                  @"Library/Containers/com.apple.ScreenSaver.Engine.legacyScreenSaver/Data/Library/Preferences/ByHost"];
+
+    NSFileManager* fileManager = NSFileManager.defaultManager;
+    BOOL isDirectory = NO;
+    if (![fileManager fileExistsAtPath:containerByHost isDirectory:&isDirectory] || !isDirectory) {
+        return;
+    }
+
+    NSArray<NSString*>* files = [fileManager contentsOfDirectoryAtPath:byHost error:nil];
+    for (NSString* file in files) {
+        if (![file hasPrefix:module] || ![file hasSuffix:@".plist"]) {
+            continue;
+        }
+        NSString* source = [byHost stringByAppendingPathComponent:file];
+        NSString* destination = [containerByHost stringByAppendingPathComponent:file];
+        [fileManager removeItemAtPath:destination error:nil];
+        [fileManager copyItemAtPath:source toPath:destination error:nil];
+    }
+}
+
 - (void)synchronize
 {
     ScreenSaverDefaults* defaults = [ScreenSaverDefaults defaultsForModuleWithName:@"com.obrhoff.musaicfm.preferences"];
     NSData* stored = [NSKeyedArchiver archivedDataWithRootObject:self];
     [defaults setObject:stored forKey:@"settings"];
     [defaults synchronize];
+    [self mirrorPreferencesIntoLegacyScreenSaverContainer];
 }
 
 + (Preferences*)preferences
@@ -80,9 +114,21 @@
     dispatch_once(&onceToken, ^{
         ScreenSaverDefaults* defaults = [ScreenSaverDefaults defaultsForModuleWithName:@"com.obrhoff.musaicfm.preferences"];
         NSData* prefData = [defaults objectForKey:@"settings"];
-        preferences = [NSKeyedUnarchiver unarchiveObjectWithData:prefData];
+        if ([prefData isKindOfClass:[NSData class]] && prefData.length) {
+            @try {
+                preferences = [NSKeyedUnarchiver unarchiveObjectWithData:prefData];
+            } @catch (__unused NSException* exception) {
+                preferences = nil;
+            }
+        }
         if (!preferences)
             preferences = [Preferences new];
+        if (preferences.rows < 1) {
+            preferences.rows = 4;
+        }
+        if (preferences.delays < 1) {
+            preferences.delays = 5;
+        }
     });
     return preferences;
 }
