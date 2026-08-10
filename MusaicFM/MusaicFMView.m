@@ -62,15 +62,17 @@
     [self prepareLayout];
     [self fetchData];
 
-    [NSWorkspace.sharedWorkspace.notificationCenter 
-     addObserver:self
-     selector:@selector(onSleepNote:)
-     name:NSWorkspaceWillSleepNotification object:nil];
+    if (!self.isPreview) {
+        [NSWorkspace.sharedWorkspace.notificationCenter
+         addObserver:self
+         selector:@selector(onSleepNote:)
+         name:NSWorkspaceWillSleepNotification object:nil];
 
-    [NSDistributedNotificationCenter.defaultCenter
-     addObserver: self
-     selector:@selector (willStop:)
-     name: @"com.apple.screensaver.willstop" object:nil];
+        [NSDistributedNotificationCenter.defaultCenter
+         addObserver:self
+         selector:@selector(willStop:)
+         name:@"com.apple.screensaver.willstop" object:nil];
+    }
 }
 
 - (void)configureCollectionView
@@ -242,14 +244,13 @@
 
 - (NSWindow*)configureSheet
 {
-    NSWindow* window;
     if (!self.prefencesViewController) {
         self.prefencesViewController = [PreferencesViewController new];
         [self.prefencesViewController loadWindow];
-        window = self.prefencesViewController.window;
     }
+    NSWindow* window = self.prefencesViewController.window;
     window.styleMask = NSWindowStyleMaskTitled;
-    return self.prefencesViewController.window;
+    return window;
 }
 
 - (NSCollectionViewItem*)collectionView:(NSCollectionView*)collectionView itemForRepresentedObjectAtIndexPath:(NSIndexPath*)indexPath

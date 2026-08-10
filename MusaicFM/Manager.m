@@ -279,18 +279,31 @@
              withCompletionHandler:(void (^)(NSArray* responses))completion
                         andFailure:(void (^)(NSError* error))failure
 {
+    if (!self.preferences.spotifyRefresh.length) {
+        if (failure)
+            failure([NSError errorWithDomain:NSCocoaErrorDomain code:NSURLErrorUserAuthenticationRequired userInfo:nil]);
+        return;
+    }
+
     __block NSMutableArray* responses = [NSMutableArray array];
     __block NSInteger taskCount = requests.count;
     __weak typeof(self) weakSelf = self;
 
     void (^recovery)(void) = ^{
+        NSString* refreshToken = weakSelf.preferences.spotifyRefresh;
+        if (!refreshToken.length) {
+            if (failure)
+                failure([NSError errorWithDomain:NSCocoaErrorDomain code:NSURLErrorUserAuthenticationRequired userInfo:nil]);
+            return;
+        }
+
         NSData* authData = [[NSString stringWithFormat:@"%@:%@", spotifyClientId, spotifySecretId] dataUsingEncoding:NSUTF8StringEncoding];
         NSString* auth = [NSString stringWithFormat:@"Basic %@", [authData base64EncodedStringWithOptions:0]];
 
         NSURLComponents* components = [Factory spotifyToken];
         NSDictionary* body = @{
             @"grant_type" : @"refresh_token",
-            @"refresh_token" : self.preferences.spotifyRefresh
+            @"refresh_token" : refreshToken
         };
         NSMutableURLRequest* recovery = [NSMutableURLRequest requestWithURL:components.URL];
         recovery.HTTPMethod = @"POST";
@@ -300,22 +313,33 @@
 
         [weakSelf performRequest:recovery.copy
             withCompletionHandler:^(NSDictionary* response) {
-            
-            NSString *error = response[@"error"];
+                if (![response isKindOfClass:[NSDictionary class]]) {
+                    if (failure)
+                        failure([NSError errorWithDomain:NSCocoaErrorDomain code:NSURLErrorBadServerResponse userInfo:nil]);
+                    return;
+                }
+
+                NSString* error = response[@"error"];
                 if (error) {
                     if ([error isEqualToString:@"invalid_grant"]) {
                         [weakSelf.preferences clear];
                         [weakSelf.preferences synchronize];
-
                     }
                     if (failure)
-                        failure([NSError errorWithDomain:NSCocoaErrorDomain
-                                                    code:NSURLErrorDataNotAllowed userInfo:nil]);
-                } else {
-                    weakSelf.preferences.spotifyToken = response[@"access_token"];
-                    [weakSelf.preferences synchronize];
-                    [weakSelf performSpotifyTokenRequest:requests withCompletionHandler:completion andFailure:failure];
+                        failure([NSError errorWithDomain:NSCocoaErrorDomain code:NSURLErrorDataNotAllowed userInfo:nil]);
+                    return;
                 }
+
+                NSString* accessToken = response[@"access_token"];
+                if (!accessToken.length) {
+                    if (failure)
+                        failure([NSError errorWithDomain:NSCocoaErrorDomain code:NSURLErrorBadServerResponse userInfo:nil]);
+                    return;
+                }
+
+                weakSelf.preferences.spotifyToken = accessToken;
+                [weakSelf.preferences synchronize];
+                [weakSelf performSpotifyTokenRequest:requests withCompletionHandler:completion andFailure:failure];
             } andFailure:failure];
     };
 
