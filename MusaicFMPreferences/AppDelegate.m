@@ -11,31 +11,35 @@
 
 @interface AppDelegate ()
 
-@property (weak) IBOutlet NSWindow *window;
-@property (nonatomic, readwrite, strong) PreferencesViewController *preferences;
-
+@property (weak) IBOutlet NSWindow* window;
+@property (nonatomic, readwrite, strong) PreferencesViewController* preferences;
 
 @end
 
 @implementation AppDelegate
 
-- (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    
+- (void)applicationDidFinishLaunching:(NSNotification*)aNotification
+{
     self.preferences = [PreferencesViewController new];
     [self.preferences loadWindow];
 
-    NSWindow *window = self.preferences.window;
-    window.styleMask = NSWindowStyleMaskTitled;
-    
-    [self.window makeKeyAndOrderFront:self];
-    [self.window beginSheet:window completionHandler:nil];
-    
+    NSWindow* preferencesWindow = self.preferences.window;
+    preferencesWindow.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
+    preferencesWindow.title = @"MusaicFM";
+    [preferencesWindow center];
+    [preferencesWindow makeKeyAndOrderFront:self];
+
+    // Hide the empty placeholder window from MainMenu.xib.
+    [self.window close];
 }
 
-
-- (void)applicationWillTerminate:(NSNotification *)aNotification {
-    // Insert code here to tear down your application
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender
+{
+    return YES;
 }
 
+- (void)applicationWillTerminate:(NSNotification*)aNotification
+{
+}
 
 @end
